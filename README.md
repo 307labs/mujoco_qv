@@ -1,5 +1,4 @@
-# mujoco_qv
-- learn Mujoco
+# Overview
 
 ## Setup
 
@@ -22,6 +21,13 @@ python motor_pid.py
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 python motor_pid.py
 ```
+
+
+# Recommendation
+- using wsl2 to code
+- ubuntu 22.04
+- mujoco 
+
