@@ -25,7 +25,6 @@ uv pip install -r requirements.txt
 python motor_pid.py
 ```
 
-
 # Recommendation
 - using wsl2 to code
 - ubuntu 22.04
