@@ -1,7 +1,7 @@
 <mujoco model="panda nohand">
   <compiler angle="radian" meshdir="assets" autolimits="true"/>
 
-  <option integrator="implicitfast"/>
+  <option integrator="implicitfast"/> <!-- Ổn định hơn Euler mặc định-->
 
   <default>
     <default class="panda">
@@ -12,12 +12,12 @@
       <default class="panda/collision">
         <geom type="mesh" group="3"/>
       </default>
-      <default class="position_actuation">
+      <default class="position_actuation">  <!-- Thông số actuator để điều khiển joint-->
         <default class="big_joint">
-          <position kp="2000" kv="200"/>
+          <position kp="2000" kv="200"/> <!-- Kp: độ lớn của lực điều khiển, kv: độ lớn của lực cản-->
         </default>
         <default class="small_joint">
-          <position kp="500" kv="50"/>
+          <position kp="500" kv="50"/> <!-- Kp: độ lớn của lực điều khiển, kv: độ lớn của lực cản-->
         </default>
       </default>
     </default>

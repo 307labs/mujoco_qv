@@ -1,10 +1,12 @@
 <mujoco model="panda scene">
   <include file="panda_nohand_01.xml"/>
 
+  <!-- Camera view -->
   <statistic center="0.3 0 0.35" extent="0.8" meansize="0.05"/>
 
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.1 0.1 0.1" specular="0 0 0"/>
+    <!-- TODO: check this setting later -->
     <global azimuth="120" elevation="-20"/>
   </visual>
 
