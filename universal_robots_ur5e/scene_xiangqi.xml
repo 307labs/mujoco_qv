@@ -1,0 +1,393 @@
+<!--
+  Xiangqi (Chinese Chess) scene for RL pick-and-place research.
+  Robot: Universal Robots UR5e
+
+  Board layout (9 columns x 10 rows):
+    - Grid spacing: 0.05 m
+    - Board center: (0.5, 0, 0.42)   [world frame]
+    - Red side:   rows 0-4  (closer to robot)
+    - Black side: rows 5-9  (farther from robot)
+
+  Piece naming: {color}_{type}_{id}
+    Types: chariot (車), horse (馬), elephant (象),
+           advisor (士), king (帥/將), cannon (砲/炮), soldier (兵/卒)
+
+  Coordinate mapping helpers (for Python):
+    row_x(r) = 0.275 + r * 0.05    r in [0..9]
+    col_y(c) = -0.20  + c * 0.05   c in [0..8]
+    piece_z  = 0.426
+-->
+<mujoco model="xiangqi scene ur5e">
+  <include file="ur5e.xml"/>
+
+  <option solver="Newton" iterations="100" cone="pyramidal" noslip_iterations="5" timestep="0.0005"/>
+
+  <statistic center="0.4 0 0.4" extent="1"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.2 0.2 0.2" specular="0 0 0"/>
+    <global azimuth="150" elevation="-25" offwidth="1280" offheight="960"/>
+  </visual>
+
+  <asset>
+    <texture name="floor_tex" type="2d" builtin="checker"
+      rgb1=".2 .3 .4" rgb2=".1 .15 .2" width="512" height="512"
+      mark="cross" markrgb=".8 .8 .8"/>
+    <material name="floor_mat" texture="floor_tex" texrepeat="2 2" texuniform="true"/>
+    <material name="table_mat" rgba="0.45 0.30 0.18 1" specular="0.2" shininess="0.1"/>
+    <material name="board_mat" rgba="0.88 0.73 0.48 1" specular="0.15" shininess="0.05"/>
+    <material name="line_mat"  rgba="0.08 0.08 0.08 1"/>
+    <material name="river_mat" rgba="0.70 0.82 0.90 0.4"/>
+    <material name="red_mat"   rgba="0.78 0.12 0.08 1" specular="0.3" shininess="0.2"/>
+    <material name="black_mat" rgba="0.12 0.12 0.12 1" specular="0.3" shininess="0.2"/>
+  </asset>
+
+  <!-- ══════════════════ Default for chess pieces ══════════════════ -->
+  <default>
+    <default class="piece_visual">
+      <geom type="cylinder" size="0.016 0.006" contype="0" conaffinity="0" mass="0.001" group="2"/>
+    </default>
+    <default class="piece_collision">
+      <geom type="box" size="0.014 0.014 0.006" friction="1.5 0.01 0.001" mass="0.05" condim="3"
+            contype="2" conaffinity="2" group="3" rgba="0 0 0 0"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <!-- ── Lighting ── -->
+    <light pos="0.5 0 1.5" dir="0 0 -1" directional="true"/>
+    <light pos="0.3 -0.4 1.0" dir="0.2 0.3 -1" diffuse="0.3 0.3 0.3" specular="0.1 0.1 0.1"/>
+
+    <!-- ── Floor ── -->
+    <geom name="floor" type="plane" size="2 2 0.01" material="floor_mat"
+          contype="3" conaffinity="3"/>
+
+    <!-- ── Table ── -->
+    <body name="table" pos="0.5 0 0">
+      <geom name="table_top"  type="box"      size="0.35 0.30 0.01"  pos="0 0 0.39" material="table_mat" mass="50"
+            contype="3" conaffinity="3"/>
+      <geom name="table_leg1" type="cylinder"  size="0.02 0.19"      pos=" 0.30  0.25 0.19" material="table_mat"/>
+      <geom name="table_leg2" type="cylinder"  size="0.02 0.19"      pos="-0.30  0.25 0.19" material="table_mat"/>
+      <geom name="table_leg3" type="cylinder"  size="0.02 0.19"      pos=" 0.30 -0.25 0.19" material="table_mat"/>
+      <geom name="table_leg4" type="cylinder"  size="0.02 0.19"      pos="-0.30 -0.25 0.19" material="table_mat"/>
+    </body>
+
+    <!-- ══════════════════ XIANGQI BOARD ══════════════════ -->
+    <!--
+      Board body origin at center of board surface.
+      Local x = world x - 0.5,  local y = world y,  local z = world z - 0.41
+      Board top surface at local z = 0.01  (world z = 0.42)
+      Grid lines drawn at local z = 0.011
+    -->
+    <body name="board" pos="0.5 0 0.41">
+      <geom name="board_surface" type="box" size="0.25 0.225 0.01" material="board_mat"
+            friction="1.5 0.01 0.001" contype="3" conaffinity="3"/>
+
+      <!-- ── River (decorative overlay between rows 4-5) ── -->
+      <geom name="river" type="box" size="0.024 0.199 0.0003" pos="0 0 0.0108" material="river_mat"
+        contype="0" conaffinity="0"/>
+
+      <!-- ── Horizontal grid lines (10 lines, one per row) ── -->
+      <geom type="box" size="0.001 0.20 0.0005" pos="-0.225 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.001 0.20 0.0005" pos="-0.175 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.001 0.20 0.0005" pos="-0.125 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.001 0.20 0.0005" pos="-0.075 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.001 0.20 0.0005" pos="-0.025 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.001 0.20 0.0005" pos=" 0.025 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.001 0.20 0.0005" pos=" 0.075 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.001 0.20 0.0005" pos=" 0.125 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.001 0.20 0.0005" pos=" 0.175 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.001 0.20 0.0005" pos=" 0.225 0 0.011" material="line_mat" contype="0" conaffinity="0"/>
+
+      <!-- ── Vertical edge lines (col 0 and col 8, full height) ── -->
+      <geom type="box" size="0.225 0.001 0.0005" pos="0 -0.20 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.225 0.001 0.0005" pos="0  0.20 0.011" material="line_mat" contype="0" conaffinity="0"/>
+
+      <!-- ── Vertical inner lines (col 1-7, broken at river) ── -->
+      <!-- Bottom half: rows 0-4 -->
+      <geom type="box" size="0.10 0.001 0.0005" pos="-0.125 -0.15 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos="-0.125 -0.10 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos="-0.125 -0.05 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos="-0.125  0.00 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos="-0.125  0.05 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos="-0.125  0.10 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos="-0.125  0.15 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <!-- Top half: rows 5-9 -->
+      <geom type="box" size="0.10 0.001 0.0005" pos=" 0.125 -0.15 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos=" 0.125 -0.10 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos=" 0.125 -0.05 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos=" 0.125  0.00 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos=" 0.125  0.05 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos=" 0.125  0.10 0.011" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.10 0.001 0.0005" pos=" 0.125  0.15 0.011" material="line_mat" contype="0" conaffinity="0"/>
+
+      <!-- ── Palace diagonals ── -->
+      <!-- Red palace (rows 0-2, cols 3-5) -->
+      <geom type="box" size="0.0707 0.001 0.0005" pos="-0.175 0 0.011" euler="0 0  0.7854" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.0707 0.001 0.0005" pos="-0.175 0 0.011" euler="0 0 -0.7854" material="line_mat" contype="0" conaffinity="0"/>
+      <!-- Black palace (rows 7-9, cols 3-5) -->
+      <geom type="box" size="0.0707 0.001 0.0005" pos=" 0.175 0 0.011" euler="0 0  0.7854" material="line_mat" contype="0" conaffinity="0"/>
+      <geom type="box" size="0.0707 0.001 0.0005" pos=" 0.175 0 0.011" euler="0 0 -0.7854" material="line_mat" contype="0" conaffinity="0"/>
+    </body>
+
+    <!-- ── Mocap target for IK tracking ── -->
+    <body name="target" pos="0.5 0 0.55" quat="0 1 0 0" mocap="true">
+      <site type="sphere" size="0.01" rgba="0 0 1 1" group="1"/>
+    </body>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!--                     RED PIECES (兵方)                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+
+    <!-- Row 0 (back rank): Chariot Horse Elephant Advisor King Advisor Elephant Horse Chariot -->
+    <body name="red_chariot_1" pos="0.275 -0.20 0.426">
+      <freejoint name="red_chariot_1_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_chariot_1_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_horse_1" pos="0.275 -0.15 0.426">
+      <freejoint name="red_horse_1_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_horse_1_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_elephant_1" pos="0.275 -0.10 0.426">
+      <freejoint name="red_elephant_1_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_elephant_1_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_advisor_1" pos="0.275 -0.05 0.426">
+      <freejoint name="red_advisor_1_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_advisor_1_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_king" pos="0.275 0.00 0.426">
+      <freejoint name="red_king_jnt"/>
+      <geom class="piece_visual" material="red_mat" size="0.018 0.007"/>
+      <geom class="piece_collision" size="0.016 0.016 0.007"/>
+      <site name="red_king_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_advisor_2" pos="0.275 0.05 0.426">
+      <freejoint name="red_advisor_2_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_advisor_2_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_elephant_2" pos="0.275 0.10 0.426">
+      <freejoint name="red_elephant_2_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_elephant_2_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_horse_2" pos="0.275 0.15 0.426">
+      <freejoint name="red_horse_2_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_horse_2_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_chariot_2" pos="0.275 0.20 0.426">
+      <freejoint name="red_chariot_2_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_chariot_2_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+
+    <!-- Row 2: Cannons at col 1 and col 7 -->
+    <body name="red_cannon_1" pos="0.375 -0.15 0.426">
+      <freejoint name="red_cannon_1_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_cannon_1_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_cannon_2" pos="0.375 0.15 0.426">
+      <freejoint name="red_cannon_2_jnt"/>
+      <geom class="piece_visual" material="red_mat"/>
+      <geom class="piece_collision"/>
+      <site name="red_cannon_2_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+
+    <!-- Row 3: Soldiers at col 0, 2, 4, 6, 8 -->
+    <body name="red_soldier_1" pos="0.425 -0.20 0.426">
+      <freejoint name="red_soldier_1_jnt"/>
+      <geom class="piece_visual" material="red_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="red_soldier_1_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_soldier_2" pos="0.425 -0.10 0.426">
+      <freejoint name="red_soldier_2_jnt"/>
+      <geom class="piece_visual" material="red_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="red_soldier_2_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_soldier_3" pos="0.425 0.00 0.426">
+      <freejoint name="red_soldier_3_jnt"/>
+      <geom class="piece_visual" material="red_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="red_soldier_3_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_soldier_4" pos="0.425 0.10 0.426">
+      <freejoint name="red_soldier_4_jnt"/>
+      <geom class="piece_visual" material="red_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="red_soldier_4_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+    <body name="red_soldier_5" pos="0.425 0.20 0.426">
+      <freejoint name="red_soldier_5_jnt"/>
+      <geom class="piece_visual" material="red_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="red_soldier_5_site" size="0.005" rgba="1 0 0 0.5" group="4"/>
+    </body>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!--                    BLACK PIECES (將方)                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+
+    <!-- Row 6: Soldiers at col 0, 2, 4, 6, 8 -->
+    <body name="black_soldier_1" pos="0.575 -0.20 0.426">
+      <freejoint name="black_soldier_1_jnt"/>
+      <geom class="piece_visual" material="black_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="black_soldier_1_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_soldier_2" pos="0.575 -0.10 0.426">
+      <freejoint name="black_soldier_2_jnt"/>
+      <geom class="piece_visual" material="black_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="black_soldier_2_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_soldier_3" pos="0.575 0.00 0.426">
+      <freejoint name="black_soldier_3_jnt"/>
+      <geom class="piece_visual" material="black_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="black_soldier_3_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_soldier_4" pos="0.575 0.10 0.426">
+      <freejoint name="black_soldier_4_jnt"/>
+      <geom class="piece_visual" material="black_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="black_soldier_4_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_soldier_5" pos="0.575 0.20 0.426">
+      <freejoint name="black_soldier_5_jnt"/>
+      <geom class="piece_visual" material="black_mat" size="0.014 0.005"/>
+      <geom class="piece_collision" size="0.012 0.012 0.005"/>
+      <site name="black_soldier_5_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+
+    <!-- Row 7: Cannons at col 1 and col 7 -->
+    <body name="black_cannon_1" pos="0.625 -0.15 0.426">
+      <freejoint name="black_cannon_1_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_cannon_1_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_cannon_2" pos="0.625 0.15 0.426">
+      <freejoint name="black_cannon_2_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_cannon_2_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+
+    <!-- Row 9 (back rank): Chariot Horse Elephant Advisor King Advisor Elephant Horse Chariot -->
+    <body name="black_chariot_1" pos="0.725 -0.20 0.426">
+      <freejoint name="black_chariot_1_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_chariot_1_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_horse_1" pos="0.725 -0.15 0.426">
+      <freejoint name="black_horse_1_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_horse_1_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_elephant_1" pos="0.725 -0.10 0.426">
+      <freejoint name="black_elephant_1_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_elephant_1_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_advisor_1" pos="0.725 -0.05 0.426">
+      <freejoint name="black_advisor_1_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_advisor_1_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_king" pos="0.725 0.00 0.426">
+      <freejoint name="black_king_jnt"/>
+      <geom class="piece_visual" material="black_mat" size="0.018 0.007"/>
+      <geom class="piece_collision" size="0.016 0.016 0.007"/>
+      <site name="black_king_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_advisor_2" pos="0.725 0.05 0.426">
+      <freejoint name="black_advisor_2_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_advisor_2_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_elephant_2" pos="0.725 0.10 0.426">
+      <freejoint name="black_elephant_2_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_elephant_2_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_horse_2" pos="0.725 0.15 0.426">
+      <freejoint name="black_horse_2_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_horse_2_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+    <body name="black_chariot_2" pos="0.725 0.20 0.426">
+      <freejoint name="black_chariot_2_jnt"/>
+      <geom class="piece_visual" material="black_mat"/>
+      <geom class="piece_collision"/>
+      <site name="black_chariot_2_site" size="0.005" rgba="0.3 0.3 0.3 0.5" group="4"/>
+    </body>
+
+    <!-- ══════════════════ CAMERAS ══════════════════ -->
+    <camera name="top_view"  pos="0.5 0 1.5" xyaxes="0 1 0 -1 0 0" fovy="60"/>
+    <camera name="side_view" pos="0.5 -1.1 0.8" xyaxes="1 0 0 0 0.6 0.8" fovy="60"/>
+    <camera name="red_view"  pos="-0.1 0 0.9" xyaxes="0 1 0 -0.6 0 0.8" fovy="60"/>
+  </worldbody>
+
+  <keyframe>
+    <key name="home_xiangqi"
+      ctrl="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0"
+      qpos="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0
+            0.275 -0.2 0.426 1 0 0 0
+            0.275 -0.15 0.426 1 0 0 0
+            0.275 -0.1 0.426 1 0 0 0
+            0.275 -0.05 0.426 1 0 0 0
+            0.275  0.0 0.426 1 0 0 0
+            0.275  0.05 0.426 1 0 0 0
+            0.275  0.1 0.426 1 0 0 0
+            0.275  0.15 0.426 1 0 0 0
+            0.275  0.2 0.426 1 0 0 0
+            0.375 -0.15 0.426 1 0 0 0
+            0.375  0.15 0.426 1 0 0 0
+            0.425 -0.2 0.426 1 0 0 0
+            0.425 -0.1 0.426 1 0 0 0
+            0.425  0.0 0.426 1 0 0 0
+            0.425  0.1 0.426 1 0 0 0
+            0.425  0.2 0.426 1 0 0 0
+            0.575 -0.2 0.426 1 0 0 0
+            0.575 -0.1 0.426 1 0 0 0
+            0.575  0.0 0.426 1 0 0 0
+            0.575  0.1 0.426 1 0 0 0
+            0.575  0.2 0.426 1 0 0 0
+            0.625 -0.15 0.426 1 0 0 0
+            0.625  0.15 0.426 1 0 0 0
+            0.725 -0.2 0.426 1 0 0 0
+            0.725 -0.15 0.426 1 0 0 0
+            0.725 -0.1 0.426 1 0 0 0
+            0.725 -0.05 0.426 1 0 0 0
+            0.725  0.0 0.426 1 0 0 0
+            0.725  0.05 0.426 1 0 0 0
+            0.725  0.1 0.426 1 0 0 0
+            0.725  0.15 0.426 1 0 0 0
+            0.725  0.2 0.426 1 0 0 0"/>
+  </keyframe>
+</mujoco>
